@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.database.Cursor;
 import android.provider.MediaStore;
@@ -20,6 +21,8 @@ public class share extends AppCompatActivity
     private TextView messageTV = null;
     private TextView responseTV = null;
 
+    private ProgressBar progressBar = null;
+
     private String m_path = "UNKNOWN FILE";
     private String m_key = "UNKNOWN KEY";
 
@@ -33,6 +36,8 @@ public class share extends AppCompatActivity
         keyTV = (TextView)findViewById(R.id.key);
         messageTV = (TextView)findViewById(R.id.status);
         responseTV = (TextView)findViewById(R.id.response);
+        this.progressBar = (ProgressBar) this.findViewById(R.id.progressBar);
+        this.progressBar.setMax(100);
 
         clearTV();
 
@@ -85,17 +90,25 @@ public class share extends AppCompatActivity
         Thread thread = new Thread(transmitter);
         thread.start();
 
-        while ( transmitter.getStatus() != FileTransmitter.Status.FAILURE   &&
-                transmitter.getStatus() != FileTransmitter.Status.EXCEPTION &&
-                transmitter.getStatus() != FileTransmitter.Status.SUCCESS)  {}
-
-        runOnUiThread(new Runnable() {
+        new Thread(new Runnable() {
+            @Override
             public void run() {
-                messageTV.setText(transmitter.getDetails());
-                responseTV.setText(transmitter.getResponse());
-                Toast.makeText(share.this, transmitter.getStatus().toString(),
-                        Toast.LENGTH_LONG).show();
+                while ( transmitter.getStatus() != FileTransmitter.Status.FAILURE   &&
+                        transmitter.getStatus() != FileTransmitter.Status.EXCEPTION &&
+                        transmitter.getStatus() != FileTransmitter.Status.SUCCESS)
+                    progressBar.setProgress((int)transmitter.getProgress());
+
+                progressBar.setProgress(100);
+
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        messageTV.setText(transmitter.getDetails());
+                        responseTV.setText(transmitter.getResponse());
+                        Toast.makeText(share.this, transmitter.getStatus().toString(),
+                                Toast.LENGTH_LONG).show();
+                    }
+                });
             }
-        });
+        }).start();
     }
 }
