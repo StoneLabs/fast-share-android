@@ -1,7 +1,5 @@
 package de.stonelabs.fastshare;
 
-import android.widget.Toast;
-
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.File;
@@ -10,8 +8,6 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
-
-import de.stonelabs.fastshare.main;
 
 class FileTransmitter implements Runnable
 {
@@ -116,15 +112,9 @@ class FileTransmitter implements Runnable
 
                 BufferedReader bufferedReader;
                 if(serverResponseCode == 200)
-                {
-                    setStatus(Status.SUCCESS, serverResponseMessage + ": " + serverResponseCode);
                     bufferedReader = new BufferedReader(new InputStreamReader((conn.getInputStream())));
-                }
                 else
-                {
-                    setStatus(Status.FAILURE, serverResponseMessage + ": " + serverResponseCode);
                     bufferedReader = new BufferedReader(new InputStreamReader((conn.getErrorStream())));
-                }
 
                 StringBuilder stringBuilder = new StringBuilder();
                 String responseBody;
@@ -133,7 +123,15 @@ class FileTransmitter implements Runnable
 
                 response = stringBuilder.toString();
 
-                //close the streams //
+                if (serverResponseCode == 200)
+                    setStatus(Status.SUCCESS, serverResponseMessage + ": " + serverResponseCode);
+                else if (serverResponseCode == 400)
+                    setStatus(Status.FAILURE, serverResponseMessage + ": " + serverResponseCode);
+                else
+                    setStatus(Status.EXCEPTION, serverResponseMessage + ": " + serverResponseCode);
+
+
+                //close the streams
                 fileInputStream.close();
                 dos.flush();
                 dos.close();
@@ -143,6 +141,6 @@ class FileTransmitter implements Runnable
             } catch (Exception e) {
                 setStatus(Status.EXCEPTION, "EXCEPTION: " + (e.getMessage().toString() == null ? "UNKNOWN" : e.getMessage().toString()));
             }
-        } // End else block
+        }
     }
 }

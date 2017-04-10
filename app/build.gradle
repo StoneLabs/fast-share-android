@@ -7,8 +7,8 @@ android {
         applicationId "de.stonelabs.fastshare"
         minSdkVersion 23
         targetSdkVersion 25
-        versionCode 2
-        versionName "DV 1.1"
+        versionCode 3
+        versionName "DV 2.0"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
@@ -27,4 +27,5 @@ dependencies {
     compile 'com.android.support.constraint:constraint-layout:1.0.2'
     compile 'com.journeyapps:zxing-android-embedded:3.2.0@aar'
     compile 'com.google.zxing:core:3.2.0'
+    compile 'andhradroid.dev:aFilechooser:1.0.1'
 }
