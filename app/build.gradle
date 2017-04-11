@@ -5,10 +5,10 @@ android {
     buildToolsVersion "25.0.2"
     defaultConfig {
         applicationId "de.stonelabs.fastshare"
-        minSdkVersion 23
+        minSdkVersion 16
         targetSdkVersion 25
-        versionCode 3
-        versionName "DV 2.0"
+        versionCode 4
+        versionName "DV 2.1"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
     buildTypes {

@@ -1,12 +1,14 @@
 package de.stonelabs.fastshare;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
-import android.view.Window;
-import android.view.WindowManager;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.database.Cursor;
@@ -23,6 +25,7 @@ import com.ipaulpro.afilechooser.utils.FileUtils;
 public class share extends AppCompatActivity
 {
     private static final int REQUEST_CHOOSER = 0x0000c1f9; //arbitrary?
+    private static final int REQUEST_PERMISS = 0x0000a86b; //arbitrary?
 
     private TextView messageTV = null;
     private TextView responseTV = null;
@@ -84,9 +87,11 @@ public class share extends AppCompatActivity
         IntentIntegrator integrator = new IntentIntegrator(this);
         integrator.setDesiredBarcodeFormats(IntentIntegrator.QR_CODE_TYPES);
         integrator.setBeepEnabled(true);
+        integrator.setPrompt("Scan an FAST-SHARE QR code to proceed..."); //Tell the user what to scan
         integrator.initiateScan();
     }
 
+    //Clear both response text views
     private void clearTV()
     {
         messageTV.setText("");
@@ -98,6 +103,7 @@ public class share extends AppCompatActivity
     {
         switch (requestCode)
         {
+            //Handle chosen file
             case REQUEST_CHOOSER:
             {
                 if (resultCode == RESULT_OK)
@@ -107,16 +113,19 @@ public class share extends AppCompatActivity
                     // Get the File path from the Uri
                     m_path = FileUtils.getPath(this, uri);
 
+                    //Start the QR scan
                     initScan();
                 }
                 else
-                    finish();
+                    finish(); //Never happened yet
                 break;
             }
+            //Handle QR code result
             case IntentIntegrator.REQUEST_CODE:
             {
                 IntentResult scanResult = IntentIntegrator.parseActivityResult(requestCode, resultCode, intent);
 
+                //Check QR code for being a valid MD5 hash
                 m_key = scanResult.getContents();
                 if (m_key == null || m_key.length() != 32) {
                     runOnUiThread(new Runnable() {
@@ -125,61 +134,92 @@ public class share extends AppCompatActivity
                                     Toast.LENGTH_LONG).show();
                         }
                     });
-                    finish();
+                    finish(); //Kill the app if not
                     return;
                 }
 
-                //Send file
-                final FileTransmitter transmitter = new FileTransmitter(m_path, m_key);
-                new Thread(transmitter).start();
-
-                progressCircle.setVisibility(View.VISIBLE);
-
-                new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        while ( transmitter.getStatus() != FileTransmitter.Status.FAILURE   &&
-                                transmitter.getStatus() != FileTransmitter.Status.EXCEPTION &&
-                                transmitter.getStatus() != FileTransmitter.Status.SUCCESS)
-                            progressBar.setProgress((int)transmitter.getProgress());
-                        progressBar.setProgress(100);
-
-                        runOnUiThread(new Runnable() {
-                            public void run() {
-                                if (transmitter.getStatus() == FileTransmitter.Status.FAILURE)
-                                {
-                                    String toast = "unknown";
-                                    try
-                                    {
-                                        JSONObject obj = new JSONObject(transmitter.getResponse());
-                                        toast = obj.getString("error");
-
-                                    }
-                                    catch (Exception ex) {}
-
-                                    Toast.makeText(share.this, "Error: " + toast,
-                                            Toast.LENGTH_LONG).show();
-                                    finish();
-                                }
-                                else if (transmitter.getStatus() == FileTransmitter.Status.SUCCESS)
-                                {
-                                    Toast.makeText(share.this, "File sent!",
-                                            Toast.LENGTH_LONG).show();
-                                    finish();
-                                }
-                                else if (transmitter.getStatus() == FileTransmitter.Status.EXCEPTION)
-                                {
-                                    progressCircle.setVisibility(View.INVISIBLE);
-                                    messageTV.setText(transmitter.getDetails());
-                                }
-                            }
-                        });
-
-                    }
-                }).start();
+                sendFile(); //Check for
                 break;
             }
         }
 
+    }
+
+    private boolean askedForPermissions = false;
+    private void sendFile()
+    {
+        // Check for necessary read permission
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED)
+        {
+            if (askedForPermissions) //Request permission only one time to not annoy the user
+            {
+                Toast.makeText(share.this, "Missing necessary permissions!",
+                        Toast.LENGTH_LONG).show();
+                finish(); //Kill the app without read permission
+            }
+
+            askedForPermissions = true;
+            //Request permission
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
+                    REQUEST_PERMISS);
+        }
+        else
+        {
+            //Send file
+            final FileTransmitter transmitter = new FileTransmitter(m_path, m_key);
+            new Thread(transmitter).start();
+
+            progressCircle.setVisibility(View.VISIBLE);
+
+            //Create background thread handling progress feedback
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    while (transmitter.getStatus() != FileTransmitter.Status.FAILURE &&
+                            transmitter.getStatus() != FileTransmitter.Status.EXCEPTION &&
+                            transmitter.getStatus() != FileTransmitter.Status.SUCCESS)
+                        progressBar.setProgress((int) transmitter.getProgress());
+                    progressBar.setProgress(100);
+
+                    runOnUiThread(new Runnable() {
+                        public void run() {
+                            if (transmitter.getStatus() == FileTransmitter.Status.FAILURE) {
+                                String toast = "unknown";
+                                try {
+                                    JSONObject obj = new JSONObject(transmitter.getResponse());
+                                    toast = obj.getString("error");
+
+                                } catch (Exception ex) {
+                                }
+
+                                Toast.makeText(share.this, "Error: " + toast,
+                                        Toast.LENGTH_LONG).show();
+                                finish();
+                            } else if (transmitter.getStatus() == FileTransmitter.Status.SUCCESS) {
+                                Toast.makeText(share.this, "File sent!",
+                                        Toast.LENGTH_LONG).show();
+                                finish();
+                            } else if (transmitter.getStatus() == FileTransmitter.Status.EXCEPTION) {
+                                progressCircle.setVisibility(View.INVISIBLE);
+                                messageTV.setText(transmitter.getDetails());
+                            }
+                        }
+                    });
+
+                }
+            }).start(); //Start the background thread
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults)
+    {
+        switch (requestCode)
+        {
+            case REQUEST_PERMISS:
+                    sendFile(); //Send files checked if the permission was granted
+                                //or not. Checking it here is not necessary.
+        }
     }
 }
